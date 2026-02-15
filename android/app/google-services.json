@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "340270248548",
+    "project_id": "qrcaffeteria",
+    "storage_bucket": "qrcaffeteria.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:340270248548:android:029985afcac89983c12571",
+        "android_client_info": {
+          "package_name": "com.example.module"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJ49VceL_XrwgN_8xondbgyvjMGiG9i7w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
