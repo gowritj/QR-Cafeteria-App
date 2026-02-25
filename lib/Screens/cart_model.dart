@@ -13,60 +13,48 @@ class CartItem {
 }
 
 class Cart {
-  static String tableId = "";
   static List<CartItem> items = [];
+  static String tableId = "";
 
-  // ➕ ADD ITEM
+  static void setTable(String id) {
+    tableId = id;
+  }
+
   static void addItem(String name, int price, String image, int qty) {
-    for (var item in items) {
-      if (item.name == name) {
-        item.quantity += qty;
-        return;
-      }
+    final index = items.indexWhere((item) => item.name == name);
+
+    if (index != -1) {
+      items[index].quantity += qty;
+    } else {
+      items.add(
+        CartItem(
+          name: name,
+          price: price,
+          image: image,
+          quantity: qty,
+        ),
+      );
     }
-    items.add(
-      CartItem(
-        name: name,
-        price: price,
-        image: image,
-        quantity: qty,
-      ),
-    );
   }
 
-  // ➖ REMOVE / DECREASE ITEM
   static void removeItem(String name) {
-    for (var item in items) {
-      if (item.name == name) {
-        if (item.quantity > 1) {
-          item.quantity--;
-        } else {
-          items.remove(item);
-        }
-        return;
-      }
-    }
+    items.removeWhere((item) => item.name == name);
   }
 
-  // 🔢 GET QUANTITY
-  static int getQuantity(String name) {
-    for (var item in items) {
-      if (item.name == name) {
-        return item.quantity;
-      }
-    }
-    return 0;
-  }
-
-  // 💰 TOTAL PRICE
   static int getTotal() {
-    return items.fold(
-      0,
-      (sum, item) => sum + item.price * item.quantity,
-    );
+    int total = 0;
+    for (var item in items) {
+      total += item.price * item.quantity;
+    }
+    return total;
   }
 
-  // 🧹 CLEAR CART
+  static int getQuantity(String name) {
+    final index = items.indexWhere((item) => item.name == name);
+    if (index == -1) return 0;
+    return items[index].quantity;
+  }
+
   static void clear() {
     items.clear();
   }

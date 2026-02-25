@@ -88,7 +88,7 @@ class _ItemDetailPageState extends State<ItemDetailPage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const PaymentPage(),
+                    builder: (_) => PaymentPage(tableId: "Table 1"),
                   ),
                 );
               },

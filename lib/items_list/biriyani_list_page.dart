@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:module/Screens/cart_model.dart';
+import 'package:module/Screens/cart_page.dart';
 import 'package:module/items_list/biriyani_detail_page.dart';
 
 class BiryaniListPage extends StatefulWidget {
@@ -12,7 +13,9 @@ class BiryaniListPage extends StatefulWidget {
 
 class _BiryaniListPageState extends State<BiryaniListPage> {
 
-  // ✅ EXISTING STATIC ITEMS
+  /* ===============================
+     STATIC ITEMS (UNCHANGED)
+  ===============================*/
   final List<Map<String, dynamic>> biryanis = [
     {
       "name": "Chicken Biryani",
@@ -40,6 +43,127 @@ class _BiryaniListPageState extends State<BiryaniListPage> {
     },
   ];
 
+  /* ===============================
+     PRODUCT CARD
+  ===============================*/
+  Widget productCard(Map<String, dynamic> item, bool isNetwork) {
+
+    final qty = Cart.getQuantity(item["name"]);
+
+    return GestureDetector(
+      onTap: () async {
+        final updated = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BiriyaniDetailPage(
+              name: item["name"],
+              image: item["image"],
+              price: item["price"],
+              description: item["description"],
+            ),
+          ),
+        );
+
+        if (updated == true) setState(() {});
+      },
+
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(color: Colors.black12, blurRadius: 6),
+          ],
+        ),
+        child: Row(
+          children: [
+
+            // IMAGE
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.horizontal(left: Radius.circular(18)),
+              child: isNetwork
+                  ? Image.network(
+                      item["image"],
+                      width: 110,
+                      height: 110,
+                      fit: BoxFit.cover,
+                    )
+                  : Image.asset(
+                      item["image"],
+                      width: 110,
+                      height: 110,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+
+            // DETAILS
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item["name"],
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(item["description"],
+                        style: TextStyle(color: Colors.grey.shade600)),
+                    const SizedBox(height: 8),
+                    Text("₹${item["price"]}",
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green)),
+                  ],
+                ),
+              ),
+            ),
+
+            // CART
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Column(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.add_circle, color: Colors.green),
+                    onPressed: () {
+                      setState(() {
+                        Cart.addItem(
+                          item["name"],
+                          item["price"],
+                          item["image"],
+                          1,
+                        );
+                        showCartPopup(context);
+                      });
+                    },
+                  ),
+                  Text(qty.toString()),
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: qty == 0
+                        ? null
+                        : () {
+                            setState(() {
+                              Cart.removeItem(item["name"]);
+                            });
+                          },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /* ===============================
+     UI
+  ===============================*/
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -48,172 +172,118 @@ class _BiryaniListPageState extends State<BiryaniListPage> {
         title: const Text("Biryani"),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-        elevation: 0.5,
       ),
 
-      // 🔥 FIRESTORE STREAM
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection("products")
             .where("category", isEqualTo: "Biryani")
+            .orderBy("createdAt", descending: true)
             .snapshots(),
         builder: (context, snapshot) {
 
-          // ⏳ loading
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          // 🔥 firebase items
           List<Map<String, dynamic>> firebaseItems = [];
 
-          if (snapshot.hasData) {
+          if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
             firebaseItems = snapshot.data!.docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
-
               return {
-                "name": data["name"] ?? "Item",
-                "price": data["price"] ?? 0,
-                "image": data["imageUrl"] ?? "",
-                "description": data["description"] ?? "",
-                "isNetwork": true,
+                "name": data["name"],
+                "price": data["price"],
+                "image": data["imageUrl"],
+                "description": data["description"],
               };
             }).toList();
           }
 
-          // ✅ combine local + firebase
-          final allItems = [
-            ...biryanis.map((e) => {...e, "isNetwork": false}),
-            ...firebaseItems,
-          ];
-
-          if (allItems.isEmpty) {
-            return const Center(child: Text("No items available"));
-          }
-
-          return ListView.builder(
+          return ListView(
             padding: const EdgeInsets.all(12),
-            itemCount: allItems.length,
-            itemBuilder: (context, index) {
+            children: [
 
-              final item = allItems[index];
-              final qty = Cart.getQuantity(item["name"]);
+              ...biryanis.map((e) => productCard(e, false)),
 
-              return GestureDetector(
-                onTap: () async {
-                  final updated = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => BiryaniDetailPage(
-                        name: item["name"],
-                        image: item["image"],
-                        price: "₹${item["price"]}",
-                        description: item["description"],
-                      ),
-                    ),
-                  );
-
-                  if (updated == true) setState(() {});
-                },
-
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 6),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-
-                      // 🖼 IMAGE
-                      ClipRRect(
-                        borderRadius: const BorderRadius.horizontal(
-                          left: Radius.circular(18),
-                        ),
-                        child: item["isNetwork"]
-                            ? Image.network(
-                                item["image"],
-                                width: 110,
-                                height: 110,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    const Icon(Icons.image, size: 80),
-                              )
-                            : Image.asset(
-                                item["image"],
-                                width: 110,
-                                height: 110,
-                                fit: BoxFit.cover,
-                              ),
-                      ),
-
-                      // 📄 DETAILS
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item["name"],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                "₹${item["price"]}",
-                                style: const TextStyle(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // ➕ ➖ CART
-                      Column(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.add_circle, color: Colors.green),
-                            onPressed: () {
-                              setState(() {
-                                Cart.addItem(
-                                  item["name"],
-                                  item["price"],
-                                  item["image"],
-                                  1,
-                                );
-                              });
-                            },
-                          ),
-                          Text(qty.toString()),
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            onPressed: qty == 0
-                                ? null
-                                : () {
-                                    setState(() {
-                                      Cart.removeItem(item["name"]);
-                                    });
-                                  },
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+              if (firebaseItems.isNotEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text("New Items Added",
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
                 ),
-              );
-            },
+                ...firebaseItems.map((e) => productCard(e, true)),
+              ],
+            ],
           );
         },
       ),
     );
   }
+}
+void showCartPopup(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (context) {
+      return Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+
+            const Icon(Icons.check_circle, color: Colors.green, size: 50),
+            const SizedBox(height: 10),
+
+            const Text(
+              "Item added to cart",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+
+                // CONTINUE SHOPPING
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text("Continue"),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // VIEW CART
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CartPage(tableId: '1',),
+                        ),
+                      );
+                    },
+                    child: const Text("View Cart"),
+                  ),
+                ),
+              ],
+            )
+          ],
+        ),
+      );
+    },
+  );
 }

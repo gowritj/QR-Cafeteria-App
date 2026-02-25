@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:module/Staff/staff_main_page.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -13,14 +12,18 @@ class AddProductPage extends StatefulWidget {
 }
 
 class _AddProductPageState extends State<AddProductPage> {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController priceController = TextEditingController();
-  final TextEditingController categoryController = TextEditingController();
+  final nameController = TextEditingController();
+  final priceController = TextEditingController();
+  final categoryController = TextEditingController();
 
   File? selectedImage;
-  final ImagePicker picker = ImagePicker();
+  bool isLoading = false;
 
-  // 📸 PICK IMAGE
+  final picker = ImagePicker();
+
+  /* =====================================================
+      PICK IMAGE
+  =====================================================*/
   Future<void> pickImage() async {
     try {
       final XFile? image = await picker.pickImage(
@@ -34,86 +37,109 @@ class _AddProductPageState extends State<AddProductPage> {
         selectedImage = File(image.path);
       });
     } catch (e) {
-      debugPrint("Image pick error: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to pick image")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Image pick error: $e")));
+      }
     }
   }
 
-  // 💾 SAVE PRODUCT
+  /* =====================================================
+      SAVE PRODUCT
+  =====================================================*/
   Future<void> saveProduct() async {
-  if (nameController.text.isEmpty ||
-      priceController.text.isEmpty ||
-      categoryController.text.isEmpty ||
-      selectedImage == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Fill all fields")),
-    );
-    return;
+    final name = nameController.text.trim();
+    final priceText = priceController.text.trim();
+    final category = categoryController.text.trim();
+
+    if (name.isEmpty ||
+        priceText.isEmpty ||
+        category.isEmpty ||
+        selectedImage == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Fill all fields")));
+      return;
+    }
+
+    final price = int.tryParse(priceText);
+    if (price == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Invalid price")));
+      return;
+    }
+
+    setState(() => isLoading = true);
+
+    try {
+      /* ---------- Upload Image ---------- */
+      final fileName = DateTime.now().millisecondsSinceEpoch.toString();
+
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child("products")
+          .child("$fileName.jpg");
+
+      await storageRef.putFile(selectedImage!);
+      final imageUrl = await storageRef.getDownloadURL();
+
+      /* ---------- Save Firestore ---------- */
+      await FirebaseFirestore.instance.collection("products").add({
+        "name": name,
+        "price": price,
+        "category": category,
+        "imageUrl": imageUrl,
+        "description": "New item",
+        "createdAt": Timestamp.now(),
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Product added successfully")),
+      );
+
+      /* ---------- Clear form ---------- */
+      nameController.clear();
+      priceController.clear();
+      categoryController.clear();
+
+      setState(() => selectedImage = null);
+
+      Navigator.pop(context); // go back
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    }
+
+    if (mounted) setState(() => isLoading = false);
   }
 
-  try {
-   
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Uploading product...")),
-    );
-
-    
-    final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child("products")
-        .child("$fileName.jpg");
-
-    await ref.putFile(selectedImage!);
-
-    final imageUrl = await ref.getDownloadURL();
-  await FirebaseFirestore.instance.collection("products").add({
-  "name": nameController.text,
-  "price": int.parse(priceController.text),
-  "category": categoryController.text,
-  "imageUrl": imageUrl,
-  "description": "New item",
-  "createdAt": Timestamp.now(),
-});
-
-    
-    
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Product uploaded successfully")),
-    );
-
-    
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const StaffPage()),
-      (route) => false,
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Error: $e")),
-    );
-  }
-}
-
+  /* =====================================================
+      UI
+  =====================================================*/
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
+
       appBar: AppBar(
         title: const Text("Add Product"),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Column(
           children: [
-            // 🖼 IMAGE PICKER
+            /* IMAGE PICKER */
             GestureDetector(
               onTap: pickImage,
               child: Container(
@@ -134,10 +160,7 @@ class _AddProductPageState extends State<AddProductPage> {
                       )
                     : ClipRRect(
                         borderRadius: BorderRadius.circular(18),
-                        child: Image.file(
-                          selectedImage!,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.file(selectedImage!, fit: BoxFit.cover),
                       ),
               ),
             ),
@@ -185,11 +208,10 @@ class _AddProductPageState extends State<AddProductPage> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onPressed: saveProduct,
-                child: const Text(
-                  "Add Product",
-                  style: TextStyle(fontSize: 16),
-                ),
+                onPressed: isLoading ? null : saveProduct,
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text("Add Product", style: TextStyle(fontSize: 16)),
               ),
             ),
           ],

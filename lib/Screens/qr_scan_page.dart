@@ -15,10 +15,7 @@ class _QRScanPageState extends State<QRScanPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Scan QR Code"),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text("Scan QR Code"), centerTitle: true),
       body: MobileScanner(
         controller: MobileScannerController(
           facing: CameraFacing.back,
@@ -31,16 +28,14 @@ class _QRScanPageState extends State<QRScanPage> {
             final String? value = barcode.rawValue;
 
             // 🔍 DEBUG
-            print("Scanned QR value: $value");
+            debugPrint("Scanned QR value: $value");
 
             if (value != null && value.isNotEmpty) {
               scanned = true;
 
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => MenuPage(tableId: value),
-                ),
+                MaterialPageRoute(builder: (_) => MenuPage(tableId: value)),
               );
               break;
             }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:module/Screens/cart_model.dart';
+import 'package:module/items_list/biriyani_list_page.dart';
 
 class BeverageDetailPage extends StatelessWidget {
   final String name;
@@ -15,31 +16,51 @@ class BeverageDetailPage extends StatelessWidget {
     required this.description,
   });
 
+  bool isNetworkImage(String path) {
+    return path.startsWith("http");
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
+
       appBar: AppBar(
         title: Text(name),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),
+
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🧃 IMAGE
+            /* =========================
+               IMAGE (AUTO TYPE)
+            =========================*/
             ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(24),
               ),
-              child: Image.asset(
-                image,
-                width: double.infinity,
-                height: 260,
-                fit: BoxFit.cover,
-              ),
+              child: isNetworkImage(image)
+                  ? Image.network(
+                      image,
+                      width: double.infinity,
+                      height: 260,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        height: 260,
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.image, size: 80),
+                      ),
+                    )
+                  : Image.asset(
+                      image,
+                      width: double.infinity,
+                      height: 260,
+                      fit: BoxFit.cover,
+                    ),
             ),
 
             Padding(
@@ -47,7 +68,7 @@ class BeverageDetailPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 🧃 NAME
+                  /* NAME */
                   Text(
                     name,
                     style: const TextStyle(
@@ -58,19 +79,29 @@ class BeverageDetailPage extends StatelessWidget {
 
                   const SizedBox(height: 8),
 
-                  // 💰 PRICE
-                  Text(
-                    "₹$price",
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                  /* PRICE */
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withAlpha(26),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      "₹ $price",
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
                     ),
                   ),
 
                   const SizedBox(height: 16),
 
-                  // 🧾 DESCRIPTION
+                  /* DESCRIPTION */
                   Text(
                     description,
                     style: TextStyle(
@@ -82,7 +113,7 @@ class BeverageDetailPage extends StatelessWidget {
 
                   const SizedBox(height: 24),
 
-                  // ℹ️ INFO ROW
+                  /* INFO ROW */
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: const [
@@ -94,7 +125,7 @@ class BeverageDetailPage extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  // ➕ ADD TO CART BUTTON
+                  /* ADD TO CART BUTTON */
                   SizedBox(
                     width: double.infinity,
                     height: 52,
@@ -107,15 +138,13 @@ class BeverageDetailPage extends StatelessWidget {
                         ),
                       ),
                       onPressed: () {
-                        Cart.addItem(
-                          name,
-                          price,
-                          image,
-                          1,
+                        Cart.addItem(name, price, image, 1);
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("$name added to cart")),
                         );
 
-                        // 🔙 Notify previous screen
-                        Navigator.pop(context, true);
+                       showCartPopup(context);
                       },
                       child: const Text(
                         "Add to Cart",
@@ -136,7 +165,9 @@ class BeverageDetailPage extends StatelessWidget {
   }
 }
 
-// 🔹 INFO TILE WIDGET
+/* =========================
+   INFO TILE
+=========================*/
 class _InfoTile extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -149,10 +180,7 @@ class _InfoTile extends StatelessWidget {
       children: [
         Icon(icon, color: Colors.green),
         const SizedBox(height: 4),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 13),
-        ),
+        Text(text, style: const TextStyle(fontSize: 13)),
       ],
     );
   }

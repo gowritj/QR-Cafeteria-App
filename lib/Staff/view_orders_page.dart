@@ -4,6 +4,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ViewOrdersPage extends StatelessWidget {
   const ViewOrdersPage({super.key});
 
+  Color statusColor(String status) {
+    switch (status) {
+      case "Pending":
+        return Colors.orange;
+      case "Preparing":
+        return Colors.blue;
+      case "Ready":
+        return Colors.green;
+      case "Served":
+        return Colors.grey;
+      default:
+        return Colors.black;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -15,14 +30,13 @@ class ViewOrdersPage extends StatelessWidget {
         elevation: 0.5,
       ),
 
-      // 🔥 REALTIME FIRESTORE STREAM
+      // REALTIME STREAM
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection("orders")
-            .orderBy("createdAt", descending: true)
+            .orderBy("timestamp", descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -37,25 +51,21 @@ class ViewOrdersPage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             itemCount: orders.length,
             itemBuilder: (context, index) {
-
               final doc = orders[index];
               final data = doc.data() as Map<String, dynamic>;
 
-              final table = data["tableId"];
-              final status = data["status"];
-              final items = (data["items"] ?? []) as List;
+              final table = data["table"];
+              final status = data["status"] ?? "Pending";
 
-
-              // convert items to display text
-              final itemText = items
-                  .map((e) => "${e["name"]} x${e["quantity"]}")
-                  .join(", ");
+              final items = List<Map<String, dynamic>>.from(
+                data["items"] ?? [],
+              );
 
               return _OrderCard(
                 docId: doc.id,
-                table: table,
-                items: itemText,
+                table: table.toString(),
                 status: status,
+                items: items,
               );
             },
           );
@@ -65,74 +75,132 @@ class ViewOrdersPage extends StatelessWidget {
   }
 }
 
+/* =====================================================
+   ORDER CARD
+=====================================================*/
 class _OrderCard extends StatelessWidget {
   final String docId;
   final String table;
-  final String items;
   final String status;
+  final List<Map<String, dynamic>> items;
 
   const _OrderCard({
     required this.docId,
     required this.table,
-    required this.items,
     required this.status,
+    required this.items,
   });
 
-  // 🔄 UPDATE STATUS
-  Future<void> updateStatus() async {
-    final newStatus = status == "Preparing" ? "Prepared" : "Completed";
+  Color statusColor(String status) {
+    switch (status) {
+      case "Pending":
+        return Colors.orange;
+      case "Preparing":
+        return Colors.blue;
+      case "Ready":
+        return Colors.green;
+      case "Served":
+        return Colors.grey;
+      default:
+        return Colors.black;
+    }
+  }
 
-    await FirebaseFirestore.instance
-        .collection("orders")
-        .doc(docId)
-        .update({"status": newStatus});
+  /* ================================
+      MARK ITEM PREPARED
+  ================================*/
+  Future<void> markPrepared(int index) async {
+    final ref = FirebaseFirestore.instance.collection("orders").doc(docId);
+
+    final doc = await ref.get();
+    List items = doc["items"];
+
+    items[index]["prepared"] = true;
+
+    await ref.update({"items": items});
+  }
+
+  /* ================================
+      UPDATE ORDER STATUS
+  ================================*/
+  Future<void> updateStatus() async {
+    final next = {
+      "Pending": "Preparing",
+      "Preparing": "Ready",
+      "Ready": "Served",
+      "Served": "Served",
+    };
+
+    await FirebaseFirestore.instance.collection("orders").doc(docId).update({
+      "status": next[status],
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    Color statusColor;
-    if (status == "Preparing") {
-      statusColor = Colors.orange;
-    } else if (status == "Prepared") {
-      statusColor = Colors.green;
-    } else {
-      statusColor = Colors.blue;
-    }
-
     return GestureDetector(
-      onTap: updateStatus,
+      onTap: updateStatus, // tap card → next status
       child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(color: Colors.black12, blurRadius: 6),
-          ],
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              table,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            /* TABLE + STATUS */
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Table $table",
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                Chip(
+                  label: Text(status),
+                  backgroundColor: statusColor(status).withAlpha(51),
+                  labelStyle: TextStyle(color: statusColor(status)),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text(items),
+
             const SizedBox(height: 10),
 
-            Align(
-              alignment: Alignment.centerRight,
-              child: Chip(
-                label: Text(status),
-                backgroundColor: statusColor.withOpacity(0.2),
-                labelStyle: TextStyle(color: statusColor),
-              ),
-            ),
+            /* ITEMS LIST */
+            ...List.generate(items.length, (i) {
+              final item = items[i];
+              final prepared = item["prepared"] ?? false;
+
+              return Row(
+                children: [
+                  Icon(
+                    prepared
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: prepared ? Colors.green : Colors.red,
+                  ),
+
+                  const SizedBox(width: 6),
+
+                  Text("${item["name"]} x${item["qty"]}"),
+
+                  const Spacer(),
+
+                  if (!prepared)
+                    IconButton(
+                      icon: const Icon(Icons.done),
+                      onPressed: () => markPrepared(i),
+                    ),
+                ],
+              );
+            }),
           ],
         ),
       ),

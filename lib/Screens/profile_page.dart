@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:module/Screens/order_final.dart';
 import 'cart_model.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -50,8 +51,11 @@ class ProfilePage extends StatelessWidget {
               leading: const Icon(Icons.receipt_long),
               title: const Text("Order History"),
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Order history coming soon")),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => OrderHistoryPage(tableId: Cart.tableId),
+                  ),
                 );
               },
             ),

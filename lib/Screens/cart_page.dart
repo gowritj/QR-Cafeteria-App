@@ -3,31 +3,48 @@ import 'package:module/Screens/cart_model.dart';
 import 'payment_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-Future<void> placeOrder({
-  required int tableId,
-  required List<Map<String, dynamic>> items,
-}) async {
 
-  double total = 0;
 
-  for (var item in items) {
-    total += (item["price"] ?? 0) * (item["qty"] ?? 0);
-  }
+class CartPage extends StatefulWidget {
+  const CartPage({super.key, required this.tableId});
 
-  await FirebaseFirestore.instance.collection("orders").add({
-    "table": tableId,
-    "items": items,
-    "total": total,
-    "status": "Pending",
-    "timestamp": Timestamp.now(),
-  });
+  final String tableId;
+
+  @override
+  State<CartPage> createState() => _CartPageState();
 }
 
+class _CartPageState extends State<CartPage> {
+ Future<void> placeOrder() async {
 
+  if (Cart.items.isEmpty) return;
 
-class CartPage extends StatelessWidget {
-  const CartPage({super.key, required String tableId});
+  final items = Cart.items.map((item) {
+    return {
+      "name": item.name,
+      "qty": item.quantity,
+      "prepared": false,
+    };
+  }).toList();
 
+  final total = Cart.getTotal();   // your method name
+
+  await FirebaseFirestore.instance.collection("orders").add({
+    "table": widget.tableId,   // use tableId passed to page
+    "status": "Pending",
+    "total": total,
+    "timestamp": Timestamp.now(),
+    "items": items,
+  });
+
+  Cart.clear();
+
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("Order placed successfully")),
+  );
+}
   @override
   Widget build(BuildContext context) {
     final totalAmount = Cart.getTotal();
@@ -216,13 +233,15 @@ class CartPage extends StatelessWidget {
                             ),
                           ),
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const PaymentPage(),
-                              ),
-                            );
-                          },
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => PaymentPage(
+        tableId: widget.tableId,
+      ),
+    ),
+  );
+},
                           child: const Text(
                             "Order Now",
                             style: TextStyle(
@@ -240,3 +259,5 @@ class CartPage extends StatelessWidget {
     );
   }
 }
+
+

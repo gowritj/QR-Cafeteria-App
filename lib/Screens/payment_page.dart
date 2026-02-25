@@ -1,9 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:module/Screens/cart_model.dart';
+import 'package:module/Screens/order_final.dart';
 
 class PaymentPage extends StatefulWidget {
-  const PaymentPage({super.key});
+  final String tableId;
+
+  const PaymentPage({super.key, required this.tableId});
 
   @override
   State<PaymentPage> createState() => _PaymentPageState();
@@ -14,75 +17,91 @@ class _PaymentPageState extends State<PaymentPage> {
   final TextEditingController couponController = TextEditingController();
   bool isPaying = false;
 
-  // 💰 PRICE CALCULATION
+  // ===============================
+  // PRICE CALCULATION
+  // ===============================
   int get subtotal => Cart.getTotal();
   int get gst => (subtotal * 0.05).round();
   int get platformFee => 10;
   int get discount => couponController.text == "SAVE20" ? 20 : 0;
   int get grandTotal => subtotal + gst + platformFee - discount;
 
-  // 💳 PAY SIMULATION
+  // ===============================
+  // PAYMENT
+  // ===============================
   Future<void> payNow() async {
-  setState(() => isPaying = true);
+    if (Cart.items.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Cart is empty")));
+      return;
+    }
 
-  await Future.delayed(const Duration(seconds: 2));
+    setState(() => isPaying = true);
 
-  try {
-    // ✅ convert cart items to firestore format
-    final orderItems = Cart.items.map((item) {
-      return {
-        "name": item.name,
-        "price": item.price,
-        "quantity": item.quantity,
-      };
-    }).toList();
+    try {
+      final orderItems = Cart.items.map((item) {
+        return {
+          "name": item.name,
+          "qty": item.quantity,
+          "prepared": false,
+        };
+      }).toList();
 
-    // ✅ save order to firestore
-    await FirebaseFirestore.instance.collection("orders").add({
-      "tableId": Cart.tableId,
-      "items": orderItems,
-      "total": grandTotal,
-      "status": "Preparing",
-      "createdAt": Timestamp.now(),
-    });
+      await FirebaseFirestore.instance.collection("orders").add({
+        "tableId": widget.tableId,
+        "items": orderItems,
+        "total": grandTotal,
+        "status": "Pending",
+        "timestamp": Timestamp.now(),
+      });
 
-    Cart.clear();
+      Cart.clear();
 
-    setState(() => isPaying = false);
+      if (!mounted) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.check_circle, color: Colors.green, size: 70),
-            SizedBox(height: 10),
-            Text("Order Placed Successfully!",
-                style: TextStyle(fontWeight: FontWeight.bold)),
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.check_circle, color: Colors.green, size: 70),
+              SizedBox(height: 10),
+              Text(
+                "Order Placed Successfully!",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        OrderHistoryPage(tableId: widget.tableId),
+                  ),
+                );
+              },
+              child: const Text("View Orders"),
+            )
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.popUntil(context, (route) => route.isFirst);
-            },
-            child: const Text("OK"),
-          )
-        ],
-      ),
-    );
-  } catch (e) {
-    setState(() => isPaying = false);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text("Error: $e")));
+      );
+    } catch (e) {
+      setState(() => isPaying = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Payment failed: $e")));
+    }
   }
-}
 
+  // ===============================
+  // UI CARD
+  // ===============================
   Widget sectionCard({required Widget child}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 18),
@@ -90,14 +109,15 @@ class _PaymentPageState extends State<PaymentPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 6),
-        ],
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
       ),
       child: child,
     );
   }
 
+  // ===============================
+  // UI
+  // ===============================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,56 +128,61 @@ class _PaymentPageState extends State<PaymentPage> {
         foregroundColor: Colors.black,
         elevation: 0.5,
       ),
-
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
 
-          // 🧾 ORDER SUMMARY
+          // ===============================
+          // ORDER SUMMARY
+          // ===============================
           sectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text("Order Summary",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 12),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
 
-                ...Cart.items.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("${item.name} x${item.quantity}"),
-                        Text("₹${item.price * item.quantity}"),
-                      ],
+                if (Cart.items.isEmpty)
+                  const Text("No items in cart")
+                else
+                  ...Cart.items.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("${item.name} x${item.quantity}"),
+                          Text("₹${item.price * item.quantity}")
+                        ],
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
 
-          // 📍 DELIVERY ADDRESS
+          // ===============================
+          // TABLE
+          // ===============================
           sectionCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Delivery Address",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                Text("Table ${Cart.tableId} • Canteen Dining Area"),
-              ],
+            child: Text(
+              "Dining Table: ${widget.tableId}",
+              style: const TextStyle(fontSize: 16),
             ),
           ),
 
-          // 🎟 COUPON
+          // ===============================
+          // COUPON
+          // ===============================
           sectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text("Apply Coupon",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: couponController,
@@ -176,13 +201,16 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
           ),
 
-          // 💳 PAYMENT METHOD
+          // ===============================
+          // PAYMENT METHOD
+          // ===============================
           sectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text("Payment Method",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 RadioListTile(
                   value: "UPI",
                   groupValue: paymentMethod,
@@ -205,7 +233,9 @@ class _PaymentPageState extends State<PaymentPage> {
             ),
           ),
 
-          // 💰 BILL DETAILS
+          // ===============================
+          // BILL DETAILS
+          // ===============================
           sectionCard(
             child: Column(
               children: [
@@ -213,16 +243,18 @@ class _PaymentPageState extends State<PaymentPage> {
                 _billRow("GST (5%)", gst),
                 _billRow("Platform fee", platformFee),
                 if (discount > 0)
-                  _billRow("Discount", -discount, isGreen: true),
+                  _billRow("Discount", -discount, green: true),
                 const Divider(),
-                _billRow("Total", grandTotal, isBold: true),
+                _billRow("Total", grandTotal, bold: true),
               ],
             ),
           ),
 
           const SizedBox(height: 20),
 
-          // 💳 PAY BUTTON
+          // ===============================
+          // PAY BUTTON
+          // ===============================
           SizedBox(
             height: 55,
             child: ElevatedButton(
@@ -250,21 +282,20 @@ class _PaymentPageState extends State<PaymentPage> {
   }
 
   Widget _billRow(String label, int amount,
-      {bool isBold = false, bool isGreen = false}) {
+      {bool bold = false, bool green = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: TextStyle(
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              )),
+              style:
+                  TextStyle(fontWeight: bold ? FontWeight.bold : null)),
           Text(
             "₹$amount",
             style: TextStyle(
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: isGreen ? Colors.green : null,
+              fontWeight: bold ? FontWeight.bold : null,
+              color: green ? Colors.green : null,
             ),
           ),
         ],
