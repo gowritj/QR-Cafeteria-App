@@ -1,24 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:module/Screens/cart_model.dart';
-import 'package:module/items_list/biriyani_list_page.dart';
+import 'package:module/items_list/biriyani_list_page.dart'; // for showCartPopup
 
-class SandDetailPage extends StatelessWidget {
+/// Reusable detail page used by every product category.
+class ItemDetailPage extends StatelessWidget {
   final String name;
   final String image;
   final int price;
   final String description;
 
-  const SandDetailPage({
+  /// list of icon/text pairs shown in the info row at the bottom of the card
+  final List<InfoTileData> infoTiles;
+
+  const ItemDetailPage({
     super.key,
     required this.name,
     required this.image,
     required this.price,
     required this.description,
+    this.infoTiles = const [],
   });
 
-  bool isNetworkImage(String path) {
-    return path.startsWith("http");
-  }
+  bool isNetworkImage(String path) => path.startsWith("http");
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +40,6 @@ class SandDetailPage extends StatelessWidget {
           SingleChildScrollView(
             child: Column(
               children: [
-
                 /* ================= IMAGE HEADER ================= */
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(
@@ -78,7 +80,6 @@ class SandDetailPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
                         /* NAME */
                         Text(
                           name,
@@ -126,15 +127,14 @@ class SandDetailPage extends StatelessWidget {
 
                         const SizedBox(height: 30),
 
-                        /* INFO ROW (SANDWICH SPECIFIC) */
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: const [
-                            _InfoTile(Icons.lunch_dining, "Freshly Made"),
-                            _InfoTile(Icons.timer, "10 mins"),
-                            _InfoTile(Icons.local_fire_department, "250 kcal"),
-                          ],
-                        ),
+                        /* INFO ROW */
+                        if (infoTiles.isNotEmpty)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: infoTiles
+                                .map((e) => _InfoTile(e.icon, e.label))
+                                .toList(),
+                          ),
                       ],
                     ),
                   ),
@@ -171,10 +171,7 @@ class SandDetailPage extends StatelessWidget {
                 },
                 child: const Text(
                   "Add to Cart",
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -183,6 +180,14 @@ class SandDetailPage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// simple container describing the icon/text pair for the info row
+class InfoTileData {
+  final IconData icon;
+  final String label;
+
+  const InfoTileData(this.icon, this.label);
 }
 
 /* ================= INFO TILE ================= */
@@ -207,10 +212,7 @@ class _InfoTile extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             text,
-            style: const TextStyle(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w500,
-            ),
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
           ),
         ],
       ),
